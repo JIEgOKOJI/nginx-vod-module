@@ -412,19 +412,24 @@ ngx_child_request_copy_headers(
 	// validate arguments (defensive: see crash at dest->headers.last->elts)
 	if (r == NULL || src == NULL || dest == NULL || params == NULL)
 	{
-		if (r != NULL && r->connection != NULL && r->connection->log != NULL)
-		{
-			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-				"ngx_child_request_copy_headers: invalid args "
-				"r:%p src:%p dest:%p params:%p",
-				r, src, dest, params);
-		}
+		ngx_log_t *log = (r != NULL && r->connection != NULL)
+			? r->connection->log
+			: ngx_cycle->log;
+
+		ngx_log_error(NGX_LOG_ERR, log, 0,
+			"ngx_child_request_copy_headers: invalid args "
+			"r:%p src:%p dest:%p params:%p",
+			r, src, dest, params);
 		return NGX_ERROR;
 	}
 
 	if (r->pool == NULL)
 	{
-		ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+		ngx_log_t *log = (r->connection != NULL && r->connection->log != NULL)
+			? r->connection->log
+			: ngx_cycle->log;
+
+		ngx_log_error(NGX_LOG_ERR, log, 0,
 			"ngx_child_request_copy_headers: request pool is null");
 		return NGX_ERROR;
 	}

@@ -441,6 +441,22 @@ ngx_child_request_copy_headers(
 		count += part->nelts;
 	}
 
+#if defined(nginx_version) && nginx_version >= 1023000
+	/*
+	 * Zero named header field pointers BEFORE ngx_list_init().
+	 * On nginx >= 1.23.0 ngx_http_headers_in[].offset may point at fields
+	 * embedded inside ngx_http_headers_in_t that overlap with the freshly
+	 * initialized dest->headers list head (part/last/elts). If we clear
+	 * them after ngx_list_init() we corrupt the list and the subsequent
+	 * dest->headers.last->elts dereference fails, breaking child/subrequest
+	 * creation (e.g. mapping subrequest in vod_mode mapped).
+	 */
+	for (hh = ngx_http_headers_in; hh->name.len; hh++) {
+		ph = (ngx_table_elt_t **)((char *) dest + hh->offset);
+		*ph = NULL;
+	}
+#endif
+
 	// allocate dest array
 	rc = ngx_list_init(&dest->headers, r->pool, count + 2, sizeof(ngx_table_elt_t));
 	if (rc != NGX_OK)
@@ -449,14 +465,6 @@ ngx_child_request_copy_headers(
 			"ngx_child_request_copy_headers: ngx_list_init failed");
 		return NGX_ERROR;
 	}
-
-#if defined(nginx_version) && nginx_version >= 1023000
-	// zero all named header fields
-	for (hh = ngx_http_headers_in; hh->name.len; hh++) {
-		ph = (ngx_table_elt_t **)((char *)dest + hh->offset);
-		*ph = NULL;
-	}
-#endif
 
 	// post-condition: ngx_list_init must set headers.last to &headers.part
 	// with a valid elts buffer. If something corrupted dest (or dest itself
